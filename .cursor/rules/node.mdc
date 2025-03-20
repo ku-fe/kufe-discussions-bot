@@ -1,0 +1,26 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+Description: Node.js 사용을 위한 규칙
+Globs: ["**/*.ts"]
+---
+
+# 모듈 관리
+- **CommonJS 대신 ESM(`import/export`)을 사용합니다.**
+- **모든 종속성은 `package.json`에 명확하게 정의합니다.**
+- **환경 변수는 `dotenv` 또는 `process.env`를 사용하여 관리합니다.**
+- **파일 및 폴더 구조를 RESTful 아키텍처에 맞게 정리합니다.**
+- **비동기 함수(`async/await`)를 사용하며, `Promise.then/catch` 패턴을 지양합니다.**
+
+# 에러 핸들링
+- **모든 비동기 코드에서 `try/catch` 또는 `catchAsync()` 핸들러를 사용합니다.**
+- **예외 발생 시 로깅을 수행하고, 프로세스를 예기치 않게 종료하지 않도록 합니다.**
+- **Unhandled Promise Rejection을 방지하기 위해 `process.on('unhandledRejection')`을 설정합니다.**
+
+# 성능 최적화
+- **파일 시스템 연산은 `fs.promises` API를 사용하여 비동기적으로 처리합니다.**
+- **CPU 집약적인 작업은 `worker_threads` 또는 `child_process`로 분리합니다.**
+- **데이터베이스 쿼리는 `async/await` 및 `connection pool`을 활용하여 최적화합니다.**

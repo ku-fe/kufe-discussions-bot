@@ -1,0 +1,27 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+Description: TypeScript 사용을 위한 규칙
+Globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# 코드 스타일
+- **모든 변수 및 함수에는 명시적인 타입을 지정합니다.** (`any` 사용 지양)
+- **객체 타입 정의 시 `interface` 또는 `type alias`를 사용합니다.**
+- **타입 캐스팅보다는 타입 내로잉(Narrowing) 기법을 활용합니다.**
+- **enum보다는 `as const` 객체를 선호합니다.**
+- **`readonly` 키워드를 활용하여 불변성을 유지합니다.**
+- **null 대신 undefined를 기본 값으로 사용합니다.**
+- **배열 대신 튜플을 사용할 수 있는 경우에는 튜플을 사용합니다.**
+
+# 코드 구조
+- **모듈 시스템은 ESModules를 사용합니다.** (`import/export` 방식)
+- **파일 네이밍은 `camelCase.ts`를 따릅니다.**
+- **타입 유틸리티를 위한 `types.ts` 파일을 따로 관리합니다.**
+
+# 기타
+- **eslint와 prettier를 함께 사용하여 코드 스타일을 자동화합니다.**
+- **tsconfig.json에서 `strict: true`를 유지하여 타입 검사를 강화합니다.**
