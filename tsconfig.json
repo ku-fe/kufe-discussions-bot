@@ -1,3 +1,4 @@
 {
-  "extends": "@wonse/tsconfig/tsconfig-node.json"
+  "extends": "@wonse/tsconfig/tsconfig-node.json",
+  "include": ["src/**/*.ts"]
 }

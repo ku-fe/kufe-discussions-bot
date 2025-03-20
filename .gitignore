@@ -12,8 +12,6 @@ build
 .env.*.local
 
 # IDE
-.vscode/*
-!.vscode/extensions.json
 .idea
 *.suo
 *.ntvs*
