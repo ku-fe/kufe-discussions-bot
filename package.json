@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Discord와 GitHub Discussions를 연동하는 봇",
   "main": "dist/server.js",
-  "type": "module",
   "scripts": {
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
