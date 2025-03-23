@@ -2,7 +2,7 @@ import { Octokit } from '@octokit/rest';
 import { config } from '../config/env.js';
 
 // GitHub API 클라이언트 인스턴스 생성
-export const octokit = new Octokit({
+export const octokit: Octokit = new Octokit({
   auth: config.github.token,
 });
 
@@ -45,7 +45,7 @@ export async function getRepositoryId(): Promise<string> {
   });
 
   repositoryId = (response as any).repository.id;
-  return repositoryId;
+  return repositoryId as string;
 }
 
 // GitHub API 클라이언트 초기화 및 테스트
