@@ -32,6 +32,32 @@ export const CREATE_DISCUSSION_MUTATION = `
   }
 `;
 
+// Discussion 댓글 생성을 위한 mutation 쿼리
+export const ADD_DISCUSSION_COMMENT_MUTATION = `
+  mutation AddDiscussionComment($discussionId: ID!, $body: String!) {
+    addDiscussionComment(input: {
+      discussionId: $discussionId
+      body: $body
+    }) {
+      comment {
+        id
+        url
+      }
+    }
+  }
+`;
+
+// Discussion ID를 가져오는 쿼리
+export const GET_DISCUSSION_ID = `
+  query GetDiscussionId($owner: String!, $name: String!, $number: Int!) {
+    repository(owner: $owner, name: $name) {
+      discussion(number: $number) {
+        id
+      }
+    }
+  }
+`;
+
 // 레포지토리 ID 캐시
 let repositoryId: string | null = null;
 
