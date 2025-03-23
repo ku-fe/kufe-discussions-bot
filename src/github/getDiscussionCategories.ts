@@ -1,4 +1,4 @@
-import { GitHubClient } from './client.js';
+import { GitHubClient } from './client';
 
 const githubClient = GitHubClient.getInstance();
 

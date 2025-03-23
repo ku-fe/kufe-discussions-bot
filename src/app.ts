@@ -1,13 +1,13 @@
 import cors from 'cors';
+import { Client, GatewayIntentBits } from 'discord.js';
 import dotenv from 'dotenv';
 import express, { Express } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { Client, GatewayIntentBits } from 'discord.js';
-import { config } from './config/env.js';
-import { ForumHandler } from './discord/forumHandler.js';
-import { GitHubClient } from './github/client.js';
-import { SupabaseClient } from './services/SupabaseClient.js';
+import { config } from './config/env';
+import { ForumHandler } from './discord/forumHandler';
+import { GitHubClient } from './github/client';
+import { SupabaseClient } from './services/SupabaseClient';
 
 dotenv.config();
 

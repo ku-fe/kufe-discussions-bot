@@ -1,5 +1,5 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
-import { config } from '../config/env.js';
+import { config } from '../config/env';
 
 // Discord 클라이언트 인스턴스 생성
 export const client = new Client({

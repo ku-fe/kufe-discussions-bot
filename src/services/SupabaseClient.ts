@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { config } from '../config/env.js';
-import { Database, ThreadDiscussion } from '../types/supabase.js';
+import { config } from '../config/env';
+import { Database, ThreadDiscussion } from '../types/supabase';
 
 export class SupabaseClient {
   private static instance: SupabaseClient;

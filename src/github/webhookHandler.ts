@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
-import { config } from '../config/env.js';
-import { ForumHandler } from '../discord/forumHandler.js';
-import { MappingService } from '../services/MappingService.js';
+import { config } from '../config/env';
+import { ForumHandler } from '../discord/forumHandler';
+import { MappingService } from '../services/MappingService';
 
 interface WebhookPayload {
   action: string;

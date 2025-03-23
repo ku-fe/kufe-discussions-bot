@@ -1,10 +1,10 @@
 import { Octokit } from '@octokit/rest';
-import { config } from '../config/env.js';
+import { config } from '../config/env';
 import {
   GitHubCommentResponse,
   GitHubDiscussionResponse,
   GitHubRepositoryResponse,
-} from '../types/github.js';
+} from '../types/github';
 
 interface DiscussionCategory {
   id: string;

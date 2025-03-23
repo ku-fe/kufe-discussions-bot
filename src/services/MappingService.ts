@@ -1,4 +1,4 @@
-import { SupabaseClient } from './SupabaseClient.js';
+import { SupabaseClient } from './SupabaseClient';
 
 export class MappingService {
   private static instance: MappingService;

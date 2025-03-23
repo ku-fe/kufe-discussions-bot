@@ -7,9 +7,9 @@ import {
   PermissionsBitField,
   ThreadChannel,
 } from 'discord.js';
-import { config } from '../config/env.js';
-import { GitHubClient } from '../github/client.js';
-import { MappingService } from '../services/MappingService.js';
+import { config } from '../config/env';
+import { GitHubClient } from '../github/client';
+import { MappingService } from '../services/MappingService';
 
 export class ForumHandler {
   private static instance: ForumHandler;

@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
-import { ForumHandler } from '../discord/forumHandler.js';
-import { WebhookHandler } from '../github/webhookHandler.js';
+import { ForumHandler } from '../discord/forumHandler';
+import { WebhookHandler } from '../github/webhookHandler';
 
 export const router: Router = express.Router();
 

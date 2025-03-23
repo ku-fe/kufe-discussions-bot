@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits } from 'discord.js';
-import { config } from './config/env.js';
-import { ForumHandler } from './discord/forumHandler.js';
-import { GitHubClient } from './github/client.js';
+import { config } from './config/env';
+import { ForumHandler } from './discord/forumHandler';
+import { GitHubClient } from './github/client';
 
 async function main() {
   try {
