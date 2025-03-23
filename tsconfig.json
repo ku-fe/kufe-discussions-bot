@@ -1,9 +1,4 @@
 {
   "extends": "@wonse/tsconfig/tsconfig-node.json",
-  "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "outDir": "dist"
-  },
   "include": ["src/**/*.ts"]
 }
