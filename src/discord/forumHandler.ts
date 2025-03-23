@@ -1,4 +1,5 @@
 import {
+  Client,
   Events,
   ForumChannel,
   GuildBasedChannel,
@@ -7,68 +8,62 @@ import {
   ThreadChannel,
 } from 'discord.js';
 import { config } from '../config/env.js';
-import {
-  ADD_DISCUSSION_COMMENT_MUTATION,
-  CREATE_DISCUSSION_MUTATION,
-  getRepositoryId,
-  octokit,
-} from '../github/client.js';
-import { client } from './client.js';
+import { GitHubClient } from '../github/client.js';
+import { MappingService } from '../services/MappingService.js';
 
-// Discussion ID와 Thread ID를 매핑하는 Map
-const threadToDiscussionMap = new Map<string, string>();
+export class ForumHandler {
+  private static instance: ForumHandler;
+  private readonly client: Client;
+  private readonly github: GitHubClient;
+  private readonly mappingService: MappingService;
 
-// 포럼 스레드 생성 이벤트 핸들러
-export function setupForumHandler(): void {
-  console.log(
-    'Forum handler setup with channel ID:',
-    config.discord.forumChannelId,
-  );
+  private constructor(client: Client) {
+    this.client = client;
+    this.github = GitHubClient.getInstance();
+    this.mappingService = MappingService.getInstance();
+  }
 
-  // 봇이 시작될 때 포럼 채널 권한 확인
-  client.once(Events.ClientReady, async () => {
-    try {
-      const channel = (await client.channels.fetch(
-        config.discord.forumChannelId,
-      )) as GuildBasedChannel;
-      if (!channel || !(channel instanceof ForumChannel)) {
-        console.error(
-          'Could not find forum channel or channel is not a forum channel. Check the channel ID.',
-        );
-        return;
-      }
-
-      if (!client.user) {
-        console.error('Client user is not available');
-        return;
-      }
-
-      const permissions = channel.permissionsFor(client.user);
-      console.log('Bot permissions in forum channel:', {
-        viewChannel: permissions?.has(PermissionsBitField.Flags.ViewChannel),
-        sendMessages: permissions?.has(PermissionsBitField.Flags.SendMessages),
-        createPublicThreads: permissions?.has(
-          PermissionsBitField.Flags.CreatePublicThreads,
-        ),
-        sendMessagesInThreads: permissions?.has(
-          PermissionsBitField.Flags.SendMessagesInThreads,
-        ),
-        readMessageHistory: permissions?.has(
-          PermissionsBitField.Flags.ReadMessageHistory,
-        ),
-      });
-    } catch (error) {
-      console.error('Error checking forum channel permissions:', error);
+  public static getInstance(client: Client): ForumHandler {
+    if (!ForumHandler.instance) {
+      ForumHandler.instance = new ForumHandler(client);
     }
-  });
+    return ForumHandler.instance;
+  }
 
-  client.on(Events.ThreadCreate, async (thread: ThreadChannel) => {
+  private async checkChannelPermissions(
+    channel: ForumChannel,
+  ): Promise<boolean> {
+    if (!this.client.user) {
+      console.error('Client user is not available');
+      return false;
+    }
+
+    const permissions = channel.permissionsFor(this.client.user);
+    const requiredPermissions = {
+      viewChannel: permissions?.has(PermissionsBitField.Flags.ViewChannel),
+      sendMessages: permissions?.has(PermissionsBitField.Flags.SendMessages),
+      createPublicThreads: permissions?.has(
+        PermissionsBitField.Flags.CreatePublicThreads,
+      ),
+      sendMessagesInThreads: permissions?.has(
+        PermissionsBitField.Flags.SendMessagesInThreads,
+      ),
+      readMessageHistory: permissions?.has(
+        PermissionsBitField.Flags.ReadMessageHistory,
+      ),
+    };
+
+    console.log('Bot permissions in forum channel:', requiredPermissions);
+
+    return Object.values(requiredPermissions).every(Boolean);
+  }
+
+  private async handleThreadCreate(thread: ThreadChannel): Promise<void> {
     console.log('Thread created event triggered:', {
       threadId: thread.id,
       threadName: thread.name,
       parentId: thread.parentId,
       parentType: thread.parent?.type,
-      expectedChannelId: config.discord.forumChannelId,
     });
 
     try {
@@ -79,62 +74,39 @@ export function setupForumHandler(): void {
       }
 
       if (thread.parentId !== config.discord.forumChannelId) {
-        console.log('Skipping: Wrong forum channel', {
-          actual: thread.parentId,
-          expected: config.discord.forumChannelId,
-        });
+        console.log('Skipping: Wrong forum channel');
         return;
       }
 
       // 스레드의 첫 메시지 가져오기
-      console.log('Fetching starter message...');
       const firstMessage = await thread.fetchStarterMessage();
       if (!firstMessage) {
         console.error('Could not fetch starter message for thread:', thread.id);
         return;
       }
 
-      console.log('Fetching repository ID...');
-      const repositoryId = await getRepositoryId();
-      console.log('Repository ID:', repositoryId);
-
-      console.log('Creating GitHub discussion with:', {
-        title: thread.name,
-        contentPreview: firstMessage.content.substring(0, 100) + '...',
-        repositoryId,
-        categoryId: config.github.discussionCategoryId,
-      });
-
       // GitHub Discussion 생성
-      const response = await octokit.graphql(CREATE_DISCUSSION_MUTATION, {
-        repositoryId,
-        categoryId: config.github.discussionCategoryId,
-        title: thread.name,
-        body: firstMessage.content,
-      });
+      const discussion = await this.github.createDiscussion(
+        thread.name,
+        firstMessage.content,
+      );
 
-      // Discussion ID를 저장
-      const discussionId = (response as any).createDiscussion.discussion.id;
-      threadToDiscussionMap.set(thread.id, discussionId);
-
-      console.log('Successfully created GitHub discussion:', response);
+      // 매핑 정보 저장
+      this.mappingService.addMapping(thread.id, discussion.id, discussion.url);
 
       // 성공 메시지를 Discord 스레드에 보내기
       await thread.send({
-        content: `✅ GitHub Discussion이 생성되었습니다!\n${(response as any).createDiscussion.discussion.url}`,
+        content: `✅ GitHub Discussion이 생성되었습니다!\n${discussion.url}`,
       });
     } catch (error) {
       console.error('Error handling forum thread creation:', error);
-
-      // 에러 메시지를 Discord 스레드에 보내기
       await thread.send({
         content: `❌ GitHub Discussion 생성 중 오류가 발생했습니다.\n\`\`\`\n${error}\n\`\`\``,
       });
     }
-  });
+  }
 
-  // 메시지 생성 이벤트 핸들러
-  client.on(Events.MessageCreate, async (message: Message) => {
+  private async handleMessageCreate(message: Message): Promise<void> {
     try {
       // 봇 메시지는 무시
       if (message.author.bot) return;
@@ -153,26 +125,51 @@ export function setupForumHandler(): void {
       if (message.id === firstMessage?.id) return;
 
       // Discussion ID 가져오기
-      const discussionId = threadToDiscussionMap.get(thread.id);
+      const discussionId = await this.mappingService.getDiscussionId(thread.id);
       if (!discussionId) {
         console.log('No discussion ID found for thread:', thread.id);
         return;
       }
 
-      console.log('Creating comment on GitHub discussion:', {
-        discussionId,
-        content: message.content,
-      });
-
       // GitHub Discussion에 댓글 추가
-      const response = await octokit.graphql(ADD_DISCUSSION_COMMENT_MUTATION, {
+      const comment = await this.github.addComment(
         discussionId,
-        body: message.content,
-      });
-
-      console.log('Successfully created GitHub comment:', response);
+        message.content,
+      );
+      console.log('Successfully created GitHub comment:', comment);
     } catch (error) {
       console.error('Error handling message creation:', error);
     }
-  });
+  }
+
+  public async initialize(): Promise<void> {
+    console.log(
+      'Forum handler setup with channel ID:',
+      config.discord.forumChannelId,
+    );
+
+    // 봇이 시작될 때 포럼 채널 권한 확인
+    this.client.once(Events.ClientReady, async () => {
+      try {
+        const channel = (await this.client.channels.fetch(
+          config.discord.forumChannelId,
+        )) as GuildBasedChannel;
+
+        if (!channel || !(channel instanceof ForumChannel)) {
+          console.error(
+            'Could not find forum channel or channel is not a forum channel. Check the channel ID.',
+          );
+          return;
+        }
+
+        await this.checkChannelPermissions(channel);
+      } catch (error) {
+        console.error('Error checking forum channel permissions:', error);
+      }
+    });
+
+    // 이벤트 핸들러 등록
+    this.client.on(Events.ThreadCreate, this.handleThreadCreate.bind(this));
+    this.client.on(Events.MessageCreate, this.handleMessageCreate.bind(this));
+  }
 }

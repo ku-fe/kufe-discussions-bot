@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-interface Config {
+export interface Config {
   discord: {
     token: string;
     forumChannelId: string;
@@ -10,6 +10,11 @@ interface Config {
     owner: string;
     repo: string;
     discussionCategoryId: string;
+    webhookSecret: string;
+  };
+  supabase: {
+    url: string;
+    key: string;
   };
   server: {
     port: number;
@@ -17,36 +22,47 @@ interface Config {
   };
 }
 
-function validateEnv(): Config {
-  if (!process.env.DISCORD_TOKEN) {
-    throw new Error('DISCORD_TOKEN is required');
-  }
-  if (!process.env.DISCORD_FORUM_CHANNEL_ID) {
-    throw new Error('DISCORD_FORUM_CHANNEL_ID is required');
-  }
-  if (!process.env.GITHUB_TOKEN) {
-    throw new Error('GITHUB_TOKEN is required');
-  }
-  if (!process.env.GITHUB_OWNER) {
-    throw new Error('GITHUB_OWNER is required');
-  }
-  if (!process.env.GITHUB_REPO) {
-    throw new Error('GITHUB_REPO is required');
-  }
-  if (!process.env.GITHUB_DISCUSSION_CATEGORY_ID) {
-    throw new Error('GITHUB_DISCUSSION_CATEGORY_ID is required');
+export function validateEnv(): Config {
+  const requiredEnvVars = {
+    // Discord
+    DISCORD_TOKEN: process.env.DISCORD_TOKEN,
+    DISCORD_FORUM_CHANNEL_ID: process.env.DISCORD_FORUM_CHANNEL_ID,
+    // GitHub
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+    GITHUB_OWNER: process.env.GITHUB_OWNER,
+    GITHUB_REPO: process.env.GITHUB_REPO,
+    GITHUB_DISCUSSION_CATEGORY_ID: process.env.GITHUB_DISCUSSION_CATEGORY_ID,
+    GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
+    // Supabase
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_KEY: process.env.SUPABASE_KEY,
+  };
+
+  const missingEnvVars = Object.entries(requiredEnvVars)
+    .filter(([_, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingEnvVars.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missingEnvVars.join(', ')}`,
+    );
   }
 
   return {
     discord: {
-      token: process.env.DISCORD_TOKEN,
-      forumChannelId: process.env.DISCORD_FORUM_CHANNEL_ID,
+      token: requiredEnvVars.DISCORD_TOKEN!,
+      forumChannelId: requiredEnvVars.DISCORD_FORUM_CHANNEL_ID!,
     },
     github: {
-      token: process.env.GITHUB_TOKEN,
-      owner: process.env.GITHUB_OWNER,
-      repo: process.env.GITHUB_REPO,
-      discussionCategoryId: process.env.GITHUB_DISCUSSION_CATEGORY_ID,
+      token: requiredEnvVars.GITHUB_TOKEN!,
+      owner: requiredEnvVars.GITHUB_OWNER!,
+      repo: requiredEnvVars.GITHUB_REPO!,
+      discussionCategoryId: requiredEnvVars.GITHUB_DISCUSSION_CATEGORY_ID!,
+      webhookSecret: requiredEnvVars.GITHUB_WEBHOOK_SECRET!,
+    },
+    supabase: {
+      url: requiredEnvVars.SUPABASE_URL!,
+      key: requiredEnvVars.SUPABASE_KEY!,
     },
     server: {
       port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,

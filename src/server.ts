@@ -1,19 +1,31 @@
-import { initializeDiscordClient } from './discord/client.js';
-import { setupForumHandler } from './discord/forumHandler.js';
-import { initializeGitHubClient } from './github/client.js';
+import { Client, GatewayIntentBits } from 'discord.js';
+import { config } from './config/env.js';
+import { ForumHandler } from './discord/forumHandler.js';
+import { GitHubClient } from './github/client.js';
 
 async function main() {
   try {
     // Discord 클라이언트 초기화
-    await initializeDiscordClient();
+    const client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildModeration,
+      ],
+    });
 
     // GitHub 클라이언트 초기화
-    await initializeGitHubClient();
+    await GitHubClient.getInstance().initialize();
 
-    // 포럼 핸들러 설정
-    setupForumHandler();
+    // 포럼 핸들러 초기화
+    const forumHandler = ForumHandler.getInstance(client);
+    await forumHandler.initialize();
 
-    console.log('Bot is ready!');
+    // Discord 로그인
+    console.log('Attempting to login to Discord...');
+    await client.login(config.discord.token);
+    console.log('Successfully logged in to Discord');
   } catch (error) {
     console.error('Failed to start the application:', error);
     process.exit(1);
