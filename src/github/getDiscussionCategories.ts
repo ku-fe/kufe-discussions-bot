@@ -1,33 +1,21 @@
-import { config } from '../config/env.js';
-import { octokit } from './client.js';
+import { GitHubClient } from './client.js';
 
-const GET_DISCUSSION_CATEGORIES = `
-  query GetDiscussionCategories($owner: String!, $name: String!) {
-    repository(owner: $owner, name: $name) {
-      discussionCategories(first: 10) {
-        nodes {
-          id
-          name
-          description
-          emoji
-        }
-      }
-    }
-  }
-`;
+const githubClient = GitHubClient.getInstance();
+
+interface DiscussionCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  emoji: string | null;
+}
 
 async function main() {
   try {
-    const response = await octokit.graphql(GET_DISCUSSION_CATEGORIES, {
-      owner: config.github.owner,
-      name: config.github.repo,
-    });
-
-    const categories = (response as any).repository.discussionCategories.nodes;
+    const categories = await githubClient.getDiscussionCategories();
 
     console.log('\nAvailable Discussion Categories:');
     console.log('================================');
-    categories.forEach((category: any) => {
+    categories.forEach((category: DiscussionCategory) => {
       console.log(`Name: ${category.name}`);
       console.log(`ID: ${category.id}`);
       console.log(`Description: ${category.description || 'No description'}`);

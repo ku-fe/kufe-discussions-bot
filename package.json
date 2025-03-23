@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "rm -rf dist && tsc --outDir dist",
     "categories": "tsx src/github/getDiscussionCategories.ts"
   },
   "keywords": [

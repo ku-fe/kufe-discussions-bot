@@ -1,10 +1,10 @@
-import express from 'express';
+import express, { Router } from 'express';
 import { ForumHandler } from '../discord/forumHandler.js';
 import { WebhookHandler } from '../github/webhookHandler.js';
 
-export const router = express.Router();
+export const router: Router = express.Router();
 
-export function setupWebhookRoutes(forumHandler: ForumHandler): express.Router {
+export function setupWebhookRoutes(forumHandler: ForumHandler): Router {
   const webhookHandler = WebhookHandler.getInstance(forumHandler);
 
   router.post('/github', express.json(), async (req, res) => {

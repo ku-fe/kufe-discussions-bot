@@ -6,6 +6,21 @@ import {
   GitHubRepositoryResponse,
 } from '../types/github.js';
 
+interface DiscussionCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  emoji: string | null;
+}
+
+interface GitHubDiscussionCategoriesResponse {
+  repository: {
+    discussionCategories: {
+      nodes: DiscussionCategory[];
+    };
+  };
+}
+
 export class GitHubClient {
   private static instance: GitHubClient;
   private octokit: Octokit;
@@ -116,5 +131,31 @@ export class GitHubClient {
       console.error('Failed to initialize GitHub client:', error);
       throw error;
     }
+  }
+
+  public async getDiscussionCategories(): Promise<DiscussionCategory[]> {
+    const response =
+      await this.octokit.graphql<GitHubDiscussionCategoriesResponse>(
+        `
+      query GetDiscussionCategories($owner: String!, $name: String!) {
+        repository(owner: $owner, name: $name) {
+          discussionCategories(first: 10) {
+            nodes {
+              id
+              name
+              description
+              emoji
+            }
+          }
+        }
+      }
+    `,
+        {
+          owner: config.github.owner,
+          name: config.github.repo,
+        },
+      );
+
+    return response.repository.discussionCategories.nodes;
   }
 }
