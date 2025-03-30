@@ -6,6 +6,9 @@ import { DiscordPostData } from '../types/discord.js';
 const owner = process.env.GITHUB_OWNER || '';
 const repo = process.env.GITHUB_REPO || '';
 
+// 동시 처리 방지를 위한 글로벌 락
+const threadCreationLocks = new Map<string, number>();
+
 /**
  * Create a GitHub discussion from a Discord post
  */
@@ -13,6 +16,64 @@ export async function createDiscussionFromPost(
   postData: DiscordPostData,
 ): Promise<{ url: string }> {
   try {
+    // 동일한 Discord 스레드에 대한 중복 생성 요청 방지
+    const lockKey = `thread-${postData.threadId}`;
+    if (threadCreationLocks.has(lockKey)) {
+      const lockTime = threadCreationLocks.get(lockKey) || 0;
+      // 60초 이내 락이 있으면 중복으로 간주
+      if (Date.now() - lockTime < 60000) {
+        console.log(
+          `[createDiscussionFromPost] Duplicate request for thread ${postData.threadId}. Request is already in progress.`,
+        );
+
+        // 이미 처리 중이므로 기존 매핑을 확인
+        const existingDiscussionId = await getGithubDiscussionId(
+          postData.threadId,
+        );
+        if (existingDiscussionId) {
+          console.log(
+            `[createDiscussionFromPost] Found existing discussion for thread ${postData.threadId} during lock check.`,
+          );
+          const existingUrl = await getDiscussionUrl(existingDiscussionId);
+          return { url: existingUrl || 'unknown' };
+        }
+
+        // 짧은 대기 후 재시도 (처리 중인 요청이 완료될 때까지)
+        console.log(
+          `[createDiscussionFromPost] Waiting for ongoing request to complete...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        // 다시 확인
+        const discussionIdAfterWait = await getGithubDiscussionId(
+          postData.threadId,
+        );
+        if (discussionIdAfterWait) {
+          console.log(
+            `[createDiscussionFromPost] Found discussion after waiting: ${discussionIdAfterWait}`,
+          );
+          const url = await getDiscussionUrl(discussionIdAfterWait);
+          return { url: url || 'unknown' };
+        }
+
+        // 여전히 없으면 계속 진행 (이전 요청이 실패했을 수 있음)
+      } else {
+        // 오래된 락은 제거
+        threadCreationLocks.delete(lockKey);
+      }
+    }
+
+    // 새 락 설정
+    threadCreationLocks.set(lockKey, Date.now());
+
+    // 5분 후 자동 락 해제 설정
+    setTimeout(
+      () => {
+        threadCreationLocks.delete(lockKey);
+      },
+      5 * 60 * 1000,
+    );
+
     console.log(
       `[createDiscussionFromPost] Checking for existing GitHub discussion for Discord thread ${postData.threadId}`,
     );
@@ -27,11 +88,11 @@ export async function createDiscussionFromPost(
       return { url: existingUrl || 'unknown' };
     }
 
-    // 추가 중복 생성 방지 지연 (3초 대기)
+    // 추가 중복 생성 방지 지연 (5초 대기로 증가)
     console.log(
       `[createDiscussionFromPost] Adding short delay to prevent race conditions...`,
     );
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // 지연 후 다시 확인
     const discussionIdAfterDelay = await getGithubDiscussionId(
@@ -223,8 +284,9 @@ export async function addCommentToDiscussion(
       auth: githubToken,
     });
 
-    // Add author attribution
-    const commentBody = `**${authorName}**:\n\n${body}`;
+    // Add author attribution and a special marker to identify this comment came from Discord
+    // [via-discord] 마커는 웹훅 핸들러에서 댓글 출처를 식별하는 데 사용됩니다
+    const commentBody = `**${authorName}**:\n\n${body}\n\n<!-- [via-discord] -->`;
 
     console.log(`Adding comment to GitHub discussion ${discussionId}`);
 
