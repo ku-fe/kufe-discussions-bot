@@ -50,6 +50,10 @@ app.get('/debug/mappings', async (req, res) => {
 });
 
 // Setup GitHub webhook routes
+console.log('Setting up GitHub webhook routes with the following configuration:');
+console.log(`- Webhook Path: /webhooks/github`);
+console.log(`- Webhook Secret: ${process.env.GITHUB_WEBHOOK_SECRET ? 'Set (hidden)' : 'Not set'}`);
+console.log(`- Webhook Events: discussions, discussion_comments`);
 setupGithubWebhooks(app);
 
 // Start the server

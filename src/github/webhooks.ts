@@ -1,5 +1,6 @@
+import crypto from 'crypto';
 import { ChannelType, Client, DMChannel, ForumChannel, NewsChannel, TextChannel, ThreadChannel } from 'discord.js';
-import { Express } from 'express';
+import { Express, Request, Response } from 'express';
 import { getDiscordThreadId } from '../store/threadStore.js';
 import {
     GitHubComment,
@@ -19,16 +20,72 @@ export function setDiscordClient(client: Client): void {
 }
 
 /**
+ * Verify GitHub webhook signature
+ */
+function verifyGitHubWebhook(req: Request): boolean {
+  const signature = req.headers['x-hub-signature-256'] as string;
+  const secret = process.env.GITHUB_WEBHOOK_SECRET;
+  const payload = JSON.stringify(req.body);
+  
+  if (!signature) {
+    console.error('No signature found in GitHub webhook request');
+    return false;
+  }
+  
+  if (!secret) {
+    console.error('GITHUB_WEBHOOK_SECRET not set in environment variables');
+    return false;
+  }
+  
+  // Create HMAC
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(payload);
+  const calculatedSignature = 'sha256=' + hmac.digest('hex');
+  
+  // Constant-time comparison to prevent timing attacks
+  const equal = crypto.timingSafeEqual(
+    Buffer.from(calculatedSignature),
+    Buffer.from(signature)
+  );
+  
+  if (!equal) {
+    console.error('GitHub webhook signature verification failed');
+    return false;
+  }
+  
+  return true;
+}
+
+/**
  * Set up GitHub webhook routes
  */
 export function setupGithubWebhooks(app: Express): void {
   // Handle discussion created event
-  app.post('/webhooks/github', async (req, res) => {
+  app.post('/webhooks/github', async (req: Request, res: Response) => {
     try {
+      // Detailed logging of the request
+      console.log(`Received GitHub webhook request:`, {
+        headers: {
+          event: req.headers['x-github-event'],
+          delivery: req.headers['x-github-delivery'],
+          signature: req.headers['x-hub-signature-256'] ? '[Present]' : '[Missing]'
+        }
+      });
+      
+      // Skip verification in development mode for testing
+      if (process.env.NODE_ENV !== 'development') {
+        if (!verifyGitHubWebhook(req)) {
+          console.error('GitHub webhook verification failed');
+          return res.status(401).send('Unauthorized');
+        }
+      } else {
+        console.log('Skipping webhook verification in development mode');
+      }
+      
       const event = req.headers['x-github-event'] as string;
       const payload = req.body;
       
-      console.log(`Received GitHub webhook event: ${event}, action: ${payload.action}`);
+      console.log(`Processing GitHub webhook event: ${event}, action: ${payload.action}`);
       
       // Check if this is a discussion event
       if (event === 'discussion') {
