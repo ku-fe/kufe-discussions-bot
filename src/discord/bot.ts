@@ -1,5 +1,6 @@
 import { ChannelType, Client, Events, GatewayIntentBits } from 'discord.js';
 import { addCommentToDiscussion, createDiscussionFromPost } from '../github/discussions.js';
+import { setDiscordClient } from '../github/webhooks.js';
 import { getGithubDiscussionId } from '../store/threadStore.js';
 
 // Create a new client instance
@@ -15,6 +16,9 @@ export function setupDiscordBot(): void {
   // When the client is ready
   client.once(Events.ClientReady, (readyClient) => {
     console.log(`Discord bot logged in as ${readyClient.user.tag}`);
+    
+    // Set Discord client reference for webhook handler
+    setDiscordClient(client);
   });
 
   // Handle forum post create events
