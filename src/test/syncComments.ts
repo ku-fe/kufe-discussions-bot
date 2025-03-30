@@ -25,7 +25,7 @@ async function testSyncComments() {
     storeMapping(testDiscordThreadId, testGithubDiscussionId, testGithubDiscussionUrl);
     
     // Verify the mapping was stored
-    const discussionId = getGithubDiscussionId(testDiscordThreadId);
+    const discussionId = await getGithubDiscussionId(testDiscordThreadId);
     console.log(`Retrieved GitHub discussion ID: ${discussionId}`);
     
     if (discussionId !== testGithubDiscussionId) {
