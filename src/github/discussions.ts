@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { storeMapping } from '../store/threadStore.js';
 import { DiscordPostData } from '../types/discord.js';
 
 // Repository details
@@ -70,10 +71,12 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
     
     console.log('GitHub discussion created successfully', response);
     
-    // Here you would also store the mapping between Discord thread ID and GitHub discussion ID
-    // This would typically be done in a database
+    // Store the mapping between Discord thread ID and GitHub discussion ID
+    const discussionId = response.createDiscussion.discussion.id;
+    const discussionUrl = response.createDiscussion.discussion.url;
+    storeMapping(postData.threadId, discussionId, discussionUrl);
     
-    return { url: response.createDiscussion.discussion.url };
+    return { url: discussionUrl };
     
   } catch (error: any) {
     console.error('Error creating GitHub discussion:');
@@ -85,6 +88,76 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
     }
     
     // 오류 세부 정보 출력
+    if (error.errors) {
+      console.error('GraphQL Errors:', JSON.stringify(error.errors, null, 2));
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Add a comment to an existing GitHub discussion
+ */
+export async function addCommentToDiscussion(discussionId: string, body: string, authorName: string): Promise<{ url: string }> {
+  try {
+    const githubToken = process.env.GITHUB_TOKEN;
+    const repositoryId = process.env.GITHUB_REPOSITORY_ID;
+    
+    if (!githubToken) {
+      console.error('GitHub token is missing! Check your .env file');
+      throw new Error('GitHub token is missing');
+    }
+    
+    if (!repositoryId) {
+      console.error('GitHub repository ID is missing! Check your .env file');
+      throw new Error('GitHub repository ID is missing');
+    }
+    
+    // Create a new Octokit instance
+    const octokit = new Octokit({
+      auth: githubToken
+    });
+    
+    // Add author attribution
+    const commentBody = `**${authorName}**:\n\n${body}`;
+    
+    console.log(`Adding comment to GitHub discussion ${discussionId}`);
+    
+    // Use GraphQL to add a comment to the discussion
+    const mutation = `
+      mutation AddDiscussionComment($discussionId: ID!, $body: String!) {
+        addDiscussionComment(input: {
+          discussionId: $discussionId,
+          body: $body
+        }) {
+          comment {
+            id
+            url
+          }
+        }
+      }
+    `;
+    
+    const variables = {
+      discussionId: discussionId,
+      body: commentBody
+    };
+    
+    const response = await octokit.graphql(mutation, variables) as { addDiscussionComment: { comment: { id: string, url: string } } };
+    
+    console.log('Comment added successfully', response);
+    
+    return { url: response.addDiscussionComment.comment.url };
+  } catch (error: any) {
+    console.error('Error adding comment to GitHub discussion:');
+    if (error.message) console.error('Message:', error.message);
+    if (error.status) console.error('Status:', error.status);
+    if (error.response) {
+      console.error('Response headers:', error.response.headers);
+      console.error('Response data:', error.response.data);
+    }
+    
     if (error.errors) {
       console.error('GraphQL Errors:', JSON.stringify(error.errors, null, 2));
     }

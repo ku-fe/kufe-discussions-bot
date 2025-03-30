@@ -5,6 +5,7 @@ Discord와 GitHub Discussions를 연동하는 봇입니다.
 ## 기능
 
 - 디스코드 포럼 채널에서 포스트를 생성하면 GitHub Discussion에 자동으로 등록
+- 디스코드 포럼 포스트에 댓글을 남기면 GitHub Discussion에 자동으로 댓글 등록
 - GitHub Discussion에 새 discussion이 생성되면 디스코드 포럼 채널에 자동으로 스레드 생성
 
 ## 기술 스택

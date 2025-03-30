@@ -1,5 +1,6 @@
 import { ChannelType, Client, Events, GatewayIntentBits } from 'discord.js';
-import { createDiscussionFromPost } from '../github/discussions.js';
+import { addCommentToDiscussion, createDiscussionFromPost } from '../github/discussions.js';
+import { getGithubDiscussionId } from '../store/threadStore.js';
 
 // Create a new client instance
 const client = new Client({ 
@@ -47,6 +48,52 @@ export function setupDiscordBot(): void {
         await thread.send('❌ GitHub Discussion 생성 중 오류가 발생했습니다. 관리자에게 문의해주세요.');
       } catch (sendError) {
         console.error('Failed to send error message to Discord thread:', sendError);
+      }
+    }
+  });
+
+  // Handle new messages in forum threads
+  client.on(Events.MessageCreate, async (message) => {
+    // Ignore messages from bots to prevent feedback loops
+    if (message.author.bot) return;
+    
+    // Check if the message is in a thread and the thread is in a forum channel
+    if (!message.channel.isThread() || message.channel.parent?.type !== ChannelType.GuildForum) return;
+    
+    // Ignore the initial message (already handled by ThreadCreate event)
+    if (message.id === message.channel.id) return;
+    
+    try {
+      const threadId = message.channel.id;
+      
+      // Check if we have a mapping for this thread
+      const discussionId = getGithubDiscussionId(threadId);
+      
+      if (discussionId) {
+        console.log(`New message in thread ${threadId}, syncing to GitHub discussion ${discussionId}`);
+        
+        // Add the comment to the GitHub discussion
+        const result = await addCommentToDiscussion(
+          discussionId, 
+          message.content, 
+          message.author.username
+        );
+        
+        // React to the message to indicate it was synced
+        await message.react('✅');
+        
+        console.log(`Comment synced to GitHub: ${result.url}`);
+      } else {
+        console.log(`No GitHub discussion mapping found for thread ${threadId}`);
+      }
+    } catch (error) {
+      console.error('Error handling new message in forum thread:', error);
+      
+      // React to the message to indicate error
+      try {
+        await message.react('❌');
+      } catch (reactError) {
+        console.error('Failed to add error reaction:', reactError);
       }
     }
   });
