@@ -1,12 +1,20 @@
 import crypto from 'crypto';
-import { ChannelType, Client, DMChannel, ForumChannel, NewsChannel, TextChannel, ThreadChannel } from 'discord.js';
+import {
+  ChannelType,
+  Client,
+  DMChannel,
+  ForumChannel,
+  NewsChannel,
+  TextChannel,
+  ThreadChannel,
+} from 'discord.js';
 import { Express, Request, Response } from 'express';
 import { getDiscordThreadId } from '../store/threadStore.js';
 import {
-    GitHubComment,
-    GitHubDiscussion,
-    GitHubDiscussionCommentEvent,
-    GitHubDiscussionEvent
+  GitHubComment,
+  GitHubDiscussion,
+  GitHubDiscussionCommentEvent,
+  GitHubDiscussionEvent,
 } from '../types/github.js';
 
 // Client reference - will be set via setDiscordClient
@@ -26,33 +34,33 @@ function verifyGitHubWebhook(req: Request): boolean {
   const signature = req.headers['x-hub-signature-256'] as string;
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
   const payload = JSON.stringify(req.body);
-  
+
   if (!signature) {
     console.error('No signature found in GitHub webhook request');
     return false;
   }
-  
+
   if (!secret) {
     console.error('GITHUB_WEBHOOK_SECRET not set in environment variables');
     return false;
   }
-  
+
   // Create HMAC
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(payload);
   const calculatedSignature = 'sha256=' + hmac.digest('hex');
-  
+
   // Constant-time comparison to prevent timing attacks
   const equal = crypto.timingSafeEqual(
     Buffer.from(calculatedSignature),
-    Buffer.from(signature)
+    Buffer.from(signature),
   );
-  
+
   if (!equal) {
     console.error('GitHub webhook signature verification failed');
     return false;
   }
-  
+
   return true;
 }
 
@@ -68,10 +76,12 @@ export function setupGithubWebhooks(app: Express): void {
         headers: {
           event: req.headers['x-github-event'],
           delivery: req.headers['x-github-delivery'],
-          signature: req.headers['x-hub-signature-256'] ? '[Present]' : '[Missing]'
-        }
+          signature: req.headers['x-hub-signature-256']
+            ? '[Present]'
+            : '[Missing]',
+        },
       });
-      
+
       // Skip verification in development mode for testing
       if (process.env.NODE_ENV !== 'development') {
         if (!verifyGitHubWebhook(req)) {
@@ -81,16 +91,18 @@ export function setupGithubWebhooks(app: Express): void {
       } else {
         console.log('Skipping webhook verification in development mode');
       }
-      
+
       const event = req.headers['x-github-event'] as string;
       const payload = req.body;
-      
-      console.log(`Processing GitHub webhook event: ${event}, action: ${payload.action}`);
-      
+
+      console.log(
+        `Processing GitHub webhook event: ${event}, action: ${payload.action}`,
+      );
+
       // Check if this is a discussion event
       if (event === 'discussion') {
         const discussionPayload = payload as GitHubDiscussionEvent;
-        
+
         // Handle discussion created event
         if (discussionPayload.action === 'created') {
           await handleDiscussionCreated(discussionPayload.discussion);
@@ -104,10 +116,13 @@ export function setupGithubWebhooks(app: Express): void {
       else if (event === 'discussion_comment') {
         const commentPayload = payload as GitHubDiscussionCommentEvent;
         if (commentPayload.action === 'created') {
-          await handleDiscussionCommentCreated(commentPayload.discussion, commentPayload.comment);
+          await handleDiscussionCommentCreated(
+            commentPayload.discussion,
+            commentPayload.comment,
+          );
         }
       }
-      
+
       res.status(200).send('Webhook received');
     } catch (error) {
       console.error('Error processing GitHub webhook:', error);
@@ -119,51 +134,92 @@ export function setupGithubWebhooks(app: Express): void {
 /**
  * Handle discussion created event
  */
-async function handleDiscussionCreated(discussion: GitHubDiscussion): Promise<void> {
+async function handleDiscussionCreated(
+  discussion: GitHubDiscussion,
+): Promise<void> {
   try {
     console.log(`New GitHub discussion created: ${discussion.title}`);
-    
+
     if (!discordClient) {
       console.error('Discord client not available');
       return;
     }
-    
+
     // Get forum channel ID from environment
     const forumChannelId = process.env.DISCORD_FORUM_CHANNEL_ID;
     if (!forumChannelId) {
-      console.error('Discord forum channel ID not set in environment variables');
+      console.error(
+        'Discord forum channel ID not set in environment variables',
+      );
       return;
     }
-    
+
     // 중복 생성 방지: 이미 해당 GitHub discussion ID에 대한 Discord thread 매핑이 있는지 확인
     const { getDiscordThreadId } = await import('../store/threadStore.js');
     const existingThreadId = await getDiscordThreadId(discussion.node_id);
     if (existingThreadId) {
-      console.log(`Skipping GitHub discussion ${discussion.node_id} - Discord thread already exists: ${existingThreadId}`);
+      console.log(
+        `Skipping GitHub discussion ${discussion.node_id} - Discord thread already exists: ${existingThreadId}`,
+      );
       return;
     }
-    
-    // Get the forum channel
+
+    // 제목으로 유사한 스레드가 최근에 생성되었는지 확인 (중복 방지 추가 로직)
     const forumChannel = await discordClient.channels.fetch(forumChannelId);
     if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
-      console.error(`Forum channel with ID ${forumChannelId} not found or is not a forum channel`);
+      console.error(
+        `Forum channel with ID ${forumChannelId} not found or is not a forum channel`,
+      );
       return;
     }
-    
+
+    // 최근 스레드 조회 (최대 10개)
+    const recentThreads = await (
+      forumChannel as ForumChannel
+    ).threads.fetchActive();
+
+    // 제목이 동일한 스레드가 이미 있는지 확인
+    const similarThread = recentThreads.threads.find(
+      (t) =>
+        t.name.toLowerCase() === discussion.title.toLowerCase() &&
+        t.createdTimestamp &&
+        t.createdTimestamp > Date.now() - 1000 * 60 * 5, // 5분 이내 생성된 스레드만 확인
+    );
+
+    if (similarThread) {
+      console.log(
+        `Found similar thread with title "${discussion.title}" - ID: ${similarThread.id}, created at ${new Date(similarThread.createdTimestamp || Date.now())}`,
+      );
+      console.log(
+        `Storing mapping for existing similar thread instead of creating a new one`,
+      );
+
+      // 유사한 스레드와 GitHub discussion을 매핑
+      const { storeMapping } = await import('../store/threadStore.js');
+      storeMapping(similarThread.id, discussion.node_id, discussion.html_url);
+
+      // 스레드에 GitHub 링크 메시지 추가
+      await similarThread.send(
+        `✅ GitHub Discussion 링크: ${discussion.html_url}`,
+      );
+      return;
+    }
+
     // Create new thread in forum
     const thread = await (forumChannel as ForumChannel).threads.create({
       name: discussion.title,
       message: {
-        content: `**${discussion.user.login}**:\n\n${discussion.body}\n\n[View on GitHub](${discussion.html_url})`
-      }
+        content: `**${discussion.user.login}**:\n\n${discussion.body}\n\n[View on GitHub](${discussion.html_url})`,
+      },
     });
-    
-    console.log(`Created Discord thread ${thread.id} for GitHub discussion ${discussion.id}`);
-    
+
+    console.log(
+      `Created Discord thread ${thread.id} for GitHub discussion ${discussion.id}`,
+    );
+
     // Store mapping between GitHub discussion ID and Discord thread ID
     const { storeMapping } = await import('../store/threadStore.js');
     storeMapping(thread.id, discussion.node_id, discussion.html_url);
-    
   } catch (error) {
     console.error('Error handling discussion created:', error);
     throw error;
@@ -173,7 +229,9 @@ async function handleDiscussionCreated(discussion: GitHubDiscussion): Promise<vo
 /**
  * Handle discussion edited event
  */
-async function handleDiscussionEdited(discussion: GitHubDiscussion): Promise<void> {
+async function handleDiscussionEdited(
+  discussion: GitHubDiscussion,
+): Promise<void> {
   // Optional: Implement if you want to sync edits
   console.log(`GitHub discussion edited: ${discussion.title}`);
 }
@@ -181,42 +239,53 @@ async function handleDiscussionEdited(discussion: GitHubDiscussion): Promise<voi
 /**
  * Handle discussion comment created event
  */
-async function handleDiscussionCommentCreated(discussion: GitHubDiscussion, comment: GitHubComment): Promise<void> {
+async function handleDiscussionCommentCreated(
+  discussion: GitHubDiscussion,
+  comment: GitHubComment,
+): Promise<void> {
   try {
     console.log(`New comment on GitHub discussion: ${discussion.title}`);
-    
+
     if (!discordClient) {
       console.error('Discord client not available');
       return;
     }
-    
+
     // Get Discord thread ID for this discussion
     const discordThreadId = await getDiscordThreadId(discussion.node_id);
-    
+
     if (!discordThreadId) {
-      console.log(`No Discord thread mapping found for GitHub discussion ${discussion.node_id}`);
+      console.log(
+        `No Discord thread mapping found for GitHub discussion ${discussion.node_id}`,
+      );
       return;
     }
-    
+
     // Get the Discord thread
     try {
       const thread = await discordClient.channels.fetch(discordThreadId);
-      
+
       if (!thread) {
         console.error(`Thread with ID ${discordThreadId} not found`);
         return;
       }
-      
+
       // Check if it's a channel type that supports sending messages
-      if (thread instanceof TextChannel || 
-          thread instanceof ThreadChannel || 
-          thread instanceof DMChannel || 
-          thread instanceof NewsChannel) {
+      if (
+        thread instanceof TextChannel ||
+        thread instanceof ThreadChannel ||
+        thread instanceof DMChannel ||
+        thread instanceof NewsChannel
+      ) {
         // Send the comment to Discord
-        await thread.send(`**${comment.user.login}**:\n\n${comment.body}\n\n[View on GitHub](${comment.html_url})`);
+        await thread.send(
+          `**${comment.user.login}**:\n\n${comment.body}\n\n[View on GitHub](${comment.html_url})`,
+        );
         console.log(`Comment synced to Discord thread ${discordThreadId}`);
       } else {
-        console.error(`Channel with ID ${discordThreadId} is not a sendable channel type`);
+        console.error(
+          `Channel with ID ${discordThreadId} is not a sendable channel type`,
+        );
       }
     } catch (error) {
       console.error(`Error fetching Discord thread ${discordThreadId}:`, error);
@@ -225,4 +294,4 @@ async function handleDiscussionCommentCreated(discussion: GitHubDiscussion, comm
     console.error('Error handling discussion comment created:', error);
     throw error;
   }
-} 
+}
