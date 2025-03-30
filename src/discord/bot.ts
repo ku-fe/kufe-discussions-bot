@@ -1,5 +1,5 @@
 import { ChannelType, Client, Events, GatewayIntentBits } from 'discord.js';
-import { createDiscussionFromPost } from '../github/discussions';
+import { createDiscussionFromPost } from '../github/discussions.js';
 
 // Create a new client instance
 const client = new Client({ 

@@ -1,11 +1,25 @@
-import cors from 'cors';
 import dotenv from 'dotenv';
-import express from 'express';
-import { setupDiscordBot } from './discord/bot';
-import { setupGithubWebhooks } from './github/webhooks';
 
-// Load environment variables
+// 환경 변수 로드를 가장 먼저 수행
 dotenv.config();
+
+// 환경 변수 로드 테스트
+if (!process.env.GITHUB_TOKEN) {
+  console.warn('WARNING: GITHUB_TOKEN is not set in environment variables!');
+}
+
+if (!process.env.GITHUB_REPOSITORY_ID) {
+  console.warn('WARNING: GITHUB_REPOSITORY_ID is not set in environment variables!');
+}
+
+if (!process.env.GITHUB_DISCUSSION_CATEGORY_ID) {
+  console.warn('WARNING: GITHUB_DISCUSSION_CATEGORY_ID is not set in environment variables!');
+}
+
+import cors from 'cors';
+import express from 'express';
+import { setupDiscordBot } from './discord/bot.js';
+import { setupGithubWebhooks } from './github/webhooks.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
