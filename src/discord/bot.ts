@@ -70,6 +70,8 @@ const syncLocks = {
   messageInProgress: new Set<string>(),
   // 최근 처리된 Discord 스레드-메시지 매핑 (스레드ID-메시지ID 형식)
   recentlyProcessed: new Map<string, Set<string>>(),
+  // GitHub에 이미 전송된 메시지 ID 추적 (중복 전송 방지)
+  sentToGitHub: new Set<string>(),
 
   // 스레드 잠금 획득 시도
   lockThread(title: string, threadId: string): boolean {
@@ -161,6 +163,24 @@ const syncLocks = {
   isMessageProcessed(threadId: string, messageId: string): boolean {
     return !!this.recentlyProcessed.get(threadId)?.has(messageId);
   },
+
+  // GitHub에 보낸 메시지로 표시
+  markSentToGitHub(messageId: string): void {
+    this.sentToGitHub.add(messageId);
+
+    // 6시간 후 자동 제거 - 장기간 메모리 사용량 제한
+    setTimeout(
+      () => {
+        this.sentToGitHub.delete(messageId);
+      },
+      6 * 60 * 60 * 1000,
+    ); // 6시간
+  },
+
+  // 메시지가 이미 GitHub에 전송되었는지 확인
+  isAlreadySentToGitHub(messageId: string): boolean {
+    return this.sentToGitHub.has(messageId);
+  },
 };
 
 export function setupDiscordBot(): void {
@@ -232,10 +252,8 @@ export function setupDiscordBot(): void {
           threadId: thread.id,
         });
 
-        // Send a confirmation message to the Discord thread
-        await thread.send(
-          `✅ GitHub Discussion이 성공적으로 생성되었습니다: ${result.url}`,
-        );
+        // Send a confirmation message to the Discord thread - 더 깔끔한 형식으로
+        await thread.send(`GitHub 링크: <${result.url}>`);
       }
     } catch (error) {
       console.error('Error handling forum post creation:', error);
@@ -272,7 +290,8 @@ export function setupDiscordBot(): void {
     // Ignore the initial message (already handled by ThreadCreate event)
     if (message.id === message.channel.id) return;
 
-    // GitHub에서 온 댓글은 무시 (순환 참조 방지)
+    // GitHub에서 온 댓글은 무시 (순환 참조 방지) - 문제가 해결되었으므로 여기서 더 이상 필요하지 않음
+    // 하지만 안전을 위해 유지
     if (message.content.includes('[github-comment]')) {
       console.log(
         `[MessageCreate] Skipping message from GitHub: ${message.id}`,
@@ -281,47 +300,83 @@ export function setupDiscordBot(): void {
     }
 
     const threadId = message.channel.id;
+    const messageId = message.id;
 
-    // 이미 처리된 메시지인지 확인 (더 강력한 체크)
+    // 즉시 처리된 메시지로 표시 (중복 방지를 위해 먼저 표시)
+    addProcessedMessage(messageId);
+    syncLocks.addProcessedMessage(threadId, messageId);
+
+    // 강화된 중복 방지 체크 (모든 조건을 검사)
     if (
-      processedMessages.has(message.id) ||
-      syncLocks.isMessageProcessed(threadId, message.id)
+      // 1. 이미 처리된 메시지인지 확인
+      processedMessages.has(messageId) ||
+      // 2. 스레드별 최근 처리 메시지 확인
+      syncLocks.isMessageProcessed(threadId, messageId) ||
+      // 3. 이미 GitHub에 전송된 메시지인지 확인 (새로 추가)
+      syncLocks.isAlreadySentToGitHub(messageId)
     ) {
       console.log(
-        `[MessageCreate] Skipping already processed message: ${message.id}`,
+        `[MessageCreate] Skipping already processed message: ${messageId}`,
       );
       return;
     }
 
     // 메시지 처리 락 획득 시도
-    if (!syncLocks.lockMessage(message.id)) {
+    if (!syncLocks.lockMessage(messageId)) {
+      console.log(
+        `[MessageCreate] Message ${messageId} is locked by another process. Skipping.`,
+      );
       return; // 이미 처리 중인 메시지
     }
 
     try {
-      // 즉시 처리된 메시지로 표시 (동시 중복 처리 방지)
-      addProcessedMessage(message.id);
-      syncLocks.addProcessedMessage(threadId, message.id);
+      // 중복 체크를 여기서 다시 한번 수행 (여러 인스턴스 실행 시 경쟁 상태 방지)
+      if (syncLocks.isAlreadySentToGitHub(messageId)) {
+        console.log(
+          `[MessageCreate] Message ${messageId} was already marked as sent to GitHub. Skipping.`,
+        );
+        return;
+      }
+
+      // 미리 GitHub 전송 표시 - 다른 인스턴스/이벤트에서 중복 처리 방지
+      syncLocks.markSentToGitHub(messageId);
 
       // Check if we have a mapping for this thread
       const discussionId = await getGithubDiscussionId(threadId);
 
       if (discussionId) {
         console.log(
-          `[MessageCreate] New message in thread ${threadId}, syncing to GitHub discussion ${discussionId}`,
+          `[MessageCreate] Message in thread ${threadId}, syncing to GitHub discussion ${discussionId}`,
         );
 
-        // Add the comment to the GitHub discussion
-        const result = await addCommentToDiscussion(
-          discussionId,
-          message.content,
-          message.author.username,
-        );
+        // Add the comment to the GitHub discussion with improved error handling
+        try {
+          const result = await addCommentToDiscussion(
+            discussionId,
+            message.content,
+            message.author.username,
+          );
 
-        // React to the message to indicate it was synced
-        await message.react('✅');
-
-        console.log(`[MessageCreate] Comment synced to GitHub: ${result.url}`);
+          // 댓글이 정상적으로 추가되었으면 체크 이모지 추가 (중복 방지 정책 성공)
+          if (result.url !== 'duplicate-prevented') {
+            await message.react('✅');
+            console.log(
+              `[MessageCreate] Comment synced to GitHub: ${result.url}`,
+            );
+          } else {
+            // 중복 방지 메커니즘에 의해 처리된 경우
+            console.log(
+              `[MessageCreate] Duplicate comment prevented by comment lock mechanism`,
+            );
+            await message.react('🔄'); // 다른 이모지로 중복 방지를 표시
+          }
+        } catch (commentError) {
+          console.error(
+            '[MessageCreate] Error adding comment to GitHub:',
+            commentError,
+          );
+          await message.react('❌');
+        }
       } else {
         console.log(
           `[MessageCreate] No GitHub discussion mapping found for thread ${threadId}. This message will not be synced.`,
@@ -343,8 +398,8 @@ export function setupDiscordBot(): void {
         );
       }
     } finally {
-      // 항상 락 해제
-      syncLocks.unlockMessage(message.id);
+      // 항상 락을 해제
+      syncLocks.unlockMessage(messageId);
     }
   });
 

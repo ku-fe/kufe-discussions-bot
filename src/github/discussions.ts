@@ -9,6 +9,9 @@ const repo = process.env.GITHUB_REPO || '';
 // 동시 처리 방지를 위한 글로벌 락
 const threadCreationLocks = new Map<string, number>();
 
+// 중복 댓글 요청 방지를 위한 글로벌 락
+const commentLocks = new Map<string, number>();
+
 /**
  * Create a GitHub discussion from a Discord post
  */
@@ -266,6 +269,38 @@ export async function addCommentToDiscussion(
   authorName: string,
 ): Promise<{ url: string }> {
   try {
+    // 이 댓글 요청에 대한 고유 키 생성 (동일 내용의 중복 요청 방지)
+    const commentKey =
+      `${discussionId}-${authorName}-${body.substring(0, 100)}`.replace(
+        /\s+/g,
+        '-',
+      );
+
+    // 이미 처리 중이거나 최근 처리된 댓글인지 확인
+    if (commentLocks.has(commentKey)) {
+      const lockTime = commentLocks.get(commentKey) || 0;
+      // 5분 이내에 동일한 댓글 요청이 있었다면 중복으로 간주
+      if (Date.now() - lockTime < 5 * 60 * 1000) {
+        console.log(
+          `Duplicate comment request detected: ${commentKey}. Skipping.`,
+        );
+        return { url: 'duplicate-prevented' };
+      }
+      // 오래된 락은 제거
+      commentLocks.delete(commentKey);
+    }
+
+    // 락 설정 - 다른 요청이 동시에 이 댓글을 처리하지 않도록
+    commentLocks.set(commentKey, Date.now());
+
+    // 5분 후 락 자동 제거
+    setTimeout(
+      () => {
+        commentLocks.delete(commentKey);
+      },
+      5 * 60 * 1000,
+    );
+
     const githubToken = process.env.GITHUB_TOKEN;
     const repositoryId = process.env.GITHUB_REPOSITORY_ID;
 

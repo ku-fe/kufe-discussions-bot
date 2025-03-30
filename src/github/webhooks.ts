@@ -1,15 +1,6 @@
 import crypto from 'crypto';
-import {
-  ChannelType,
-  Client,
-  DMChannel,
-  ForumChannel,
-  NewsChannel,
-  TextChannel,
-  ThreadChannel,
-} from 'discord.js';
+import { ChannelType, Client, ForumChannel } from 'discord.js';
 import { Express, Request, Response } from 'express';
-import { getDiscordThreadId } from '../store/threadStore.js';
 import {
   GitHubComment,
   GitHubDiscussion,
@@ -271,130 +262,16 @@ async function handleDiscussionCommentCreated(
   comment: GitHubComment,
 ): Promise<void> {
   try {
-    console.log(`New comment on GitHub discussion: ${discussion.title}`);
+    console.log(
+      `New comment on GitHub discussion: ${discussion.title} (from GitHub)`,
+    );
 
-    if (!discordClient) {
-      console.error('Discord client not available');
-      return;
-    }
-
-    // Check if this comment originated from Discord
-    // Discord 봇이 GitHub에 작성한 댓글인지 확인 (댓글 본문에 특정 표시가 있는지 검사)
-    if (
-      comment.body.includes('[via-discord]') ||
-      comment.body.includes('<!-- [via-discord] -->')
-    ) {
-      console.log(
-        'Skipping comment that originated from Discord to prevent loop',
-      );
-      return;
-    }
-
-    // 이미 처리한 댓글인지 확인 (1시간 이내)
-    const commentId = comment.id.toString();
-    const now = Date.now();
-    if (processedComments.has(commentId)) {
-      const processedTime = processedComments.get(commentId) || 0;
-      // 1시간 이내에 처리된 댓글은 건너뛰기
-      if (now - processedTime < 60 * 60 * 1000) {
-        console.log(
-          `Comment ${commentId} was already processed recently. Skipping.`,
-        );
-        return;
-      }
-      // 오래된 기록은 삭제
-      processedComments.delete(commentId);
-    }
-
-    // 동일 댓글에 대한 동시 처리 방지 (락 획득)
-    const commentLockKey = `comment-processing-${commentId}`;
-    if (commentProcessingLocks.has(commentLockKey)) {
-      console.log(
-        `Comment ${commentId} is currently being processed. Skipping duplicate request.`,
-      );
-      return;
-    }
-
-    // 락 설정
-    commentProcessingLocks.add(commentLockKey);
-
-    try {
-      // 중복 댓글 처리 방지 (댓글 ID 기반)
-      const commentKey = `comment-${comment.id}`;
-      if (processingDiscussions.has(commentKey)) {
-        console.log(
-          `Comment ${comment.id} is already being processed. Skipping.`,
-        );
-        return;
-      }
-
-      // 처리 중 표시
-      processingDiscussions.add(commentKey);
-
-      // 10초 후에 처리 중 표시 제거
-      setTimeout(() => {
-        processingDiscussions.delete(commentKey);
-      }, 10000);
-
-      // Get Discord thread ID for this discussion
-      const discordThreadId = await getDiscordThreadId(discussion.node_id);
-
-      if (!discordThreadId) {
-        console.log(
-          `No Discord thread mapping found for GitHub discussion ${discussion.node_id}`,
-        );
-        return;
-      }
-
-      // Get the Discord thread
-      try {
-        const thread = await discordClient.channels.fetch(discordThreadId);
-
-        if (!thread) {
-          console.error(`Thread with ID ${discordThreadId} not found`);
-          return;
-        }
-
-        // Check if it's a channel type that supports sending messages
-        if (
-          thread instanceof TextChannel ||
-          thread instanceof ThreadChannel ||
-          thread instanceof DMChannel ||
-          thread instanceof NewsChannel
-        ) {
-          // Send the comment to Discord
-          await thread.send(
-            `**${comment.user.login}**:\n\n${comment.body}\n\n<${comment.html_url}> [github-comment]`,
-          );
-          console.log(`Comment synced to Discord thread ${discordThreadId}`);
-
-          // 처리 완료된 댓글로 기록
-          processedComments.set(commentId, now);
-
-          // 오래된 댓글 기록 정리 (메모리 관리)
-          if (processedComments.size > 1000) {
-            // 가장 오래된 100개 항목 제거
-            const entries = Array.from(processedComments.entries());
-            entries.sort((a, b) => a[1] - b[1]);
-            for (let i = 0; i < 100 && i < entries.length; i++) {
-              processedComments.delete(entries[i][0]);
-            }
-          }
-        } else {
-          console.error(
-            `Channel with ID ${discordThreadId} is not a sendable channel type`,
-          );
-        }
-      } catch (error) {
-        console.error(
-          `Error fetching Discord thread ${discordThreadId}:`,
-          error,
-        );
-      }
-    } finally {
-      // 락 해제
-      commentProcessingLocks.delete(commentLockKey);
-    }
+    // GitHub -> Discord 동기화 비활성화 (중복 댓글 문제 해결)
+    console.log(
+      `GitHub -> Discord 댓글 동기화가 비활성화되었습니다. 처리를 중단합니다.`,
+    );
+    console.log(`댓글 ID: ${comment.id}, 댓글 작성자: ${comment.user.login}`);
+    return;
   } catch (error) {
     console.error('Error handling discussion comment created:', error);
     throw error;
