@@ -53,6 +53,8 @@ export class App {
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.GuildMembers,
       ],
     });
     this.githubClient = GitHubClient.getInstance();

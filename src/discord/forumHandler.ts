@@ -39,23 +39,36 @@ export class ForumHandler {
     }
 
     const permissions = channel.permissionsFor(this.client.user);
+    if (!permissions) {
+      console.error('Could not fetch permissions for the bot in this channel');
+      return false;
+    }
+
     const requiredPermissions = {
-      viewChannel: permissions?.has(PermissionsBitField.Flags.ViewChannel),
-      sendMessages: permissions?.has(PermissionsBitField.Flags.SendMessages),
-      createPublicThreads: permissions?.has(
+      viewChannel: permissions.has(PermissionsBitField.Flags.ViewChannel),
+      sendMessages: permissions.has(PermissionsBitField.Flags.SendMessages),
+      createPublicThreads: permissions.has(
         PermissionsBitField.Flags.CreatePublicThreads,
       ),
-      sendMessagesInThreads: permissions?.has(
+      sendMessagesInThreads: permissions.has(
         PermissionsBitField.Flags.SendMessagesInThreads,
       ),
-      readMessageHistory: permissions?.has(
+      readMessageHistory: permissions.has(
         PermissionsBitField.Flags.ReadMessageHistory,
       ),
     };
 
-    console.log('Bot permissions in forum channel:', requiredPermissions);
+    const missingPermissions = Object.entries(requiredPermissions)
+      .filter(([_, hasPermission]) => !hasPermission)
+      .map(([permission]) => permission);
 
-    return Object.values(requiredPermissions).every(Boolean);
+    if (missingPermissions.length > 0) {
+      console.error('Missing required permissions:', missingPermissions);
+      return false;
+    }
+
+    console.log('Bot has all required permissions in forum channel');
+    return true;
   }
 
   private async handleThreadCreate(thread: ThreadChannel): Promise<void> {
