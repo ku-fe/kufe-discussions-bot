@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest';
-import { storeMapping } from '../store/threadStore.js';
+import { getGithubDiscussionId, storeMapping } from '../store/threadStore.js';
 import { DiscordPostData } from '../types/discord.js';
 
 // Repository details
@@ -11,6 +11,14 @@ const repo = process.env.GITHUB_REPO || '';
  */
 export async function createDiscussionFromPost(postData: DiscordPostData): Promise<{ url: string }> {
   try {
+    // 중복 생성 방지: threadId에 대한 매핑이 이미 존재하는지 확인
+    const existingDiscussionId = getGithubDiscussionId(postData.threadId);
+    if (existingDiscussionId) {
+      console.log(`[createDiscussionFromPost] Discussion already exists for thread ${postData.threadId}. Skipping creation.`);
+      const existingUrl = await getDiscussionUrl(existingDiscussionId);
+      return { url: existingUrl || 'unknown' };
+    }
+
     // 실행 시점에 토큰 가져오기
     const githubToken = process.env.GITHUB_TOKEN;
     const categoryId = process.env.GITHUB_DISCUSSION_CATEGORY_ID;
@@ -18,17 +26,17 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
     
     // 필수 값 유효성 확인
     if (!githubToken) {
-      console.error('GitHub token is missing! Check your .env file');
+      console.error('[createDiscussionFromPost] GitHub token is missing! Check your .env file');
       throw new Error('GitHub token is missing');
     }
     
     if (!categoryId) {
-      console.error('GitHub discussion category ID is missing! Check your .env file');
+      console.error('[createDiscussionFromPost] GitHub discussion category ID is missing! Check your .env file');
       throw new Error('GitHub discussion category ID is missing');
     }
     
     if (!repositoryId) {
-      console.error('GitHub repository ID is missing! Check your .env file');
+      console.error('[createDiscussionFromPost] GitHub repository ID is missing! Check your .env file');
       throw new Error('GitHub repository ID is missing');
     }
     
@@ -37,9 +45,9 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
       auth: githubToken
     });
     
-    console.log(`Creating GitHub discussion from Discord post: ${postData.title}`);
-    console.log(`Using GitHub token: ${githubToken.substring(0, 4)}...${githubToken.substring(githubToken.length - 4)}`);
-    console.log(`Repository ID: ${repositoryId}, Category ID: ${categoryId}`);
+    console.log(`[createDiscussionFromPost] Creating GitHub discussion from Discord post: ${postData.title} (Thread ID: ${postData.threadId})`);
+    console.log(`[createDiscussionFromPost] Using GitHub token: ${githubToken.substring(0, 4)}...${githubToken.substring(githubToken.length - 4)}`);
+    console.log(`[createDiscussionFromPost] Repository ID: ${repositoryId}, Category ID: ${categoryId}`);
     
     // GraphQL 쿼리 방식
     const mutation = `
@@ -65,11 +73,11 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
       title: postData.title
     };
     
-    console.log('Sending GraphQL mutation with variables:', JSON.stringify(variables, null, 2));
+    console.log('[createDiscussionFromPost] Sending GraphQL mutation with variables:', JSON.stringify(variables, null, 2));
     
     const response = await octokit.graphql(mutation, variables) as { createDiscussion: { discussion: { id: string, url: string } } };
     
-    console.log('GitHub discussion created successfully', response);
+    console.log('[createDiscussionFromPost] GitHub discussion created successfully', response);
     
     // Store the mapping between Discord thread ID and GitHub discussion ID
     const discussionId = response.createDiscussion.discussion.id;
@@ -79,7 +87,7 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
     return { url: discussionUrl };
     
   } catch (error: any) {
-    console.error('Error creating GitHub discussion:');
+    console.error('[createDiscussionFromPost] Error creating GitHub discussion:');
     if (error.message) console.error('Message:', error.message);
     if (error.status) console.error('Status:', error.status);
     if (error.response) {
@@ -93,6 +101,44 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
     }
     
     throw error;
+  }
+}
+
+/**
+ * Get discussion URL by ID using GitHub API
+ */
+async function getDiscussionUrl(discussionId: string): Promise<string | null> {
+  try {
+    const githubToken = process.env.GITHUB_TOKEN;
+    
+    if (!githubToken) {
+      console.error('[getDiscussionUrl] GitHub token is missing! Check your .env file');
+      return null;
+    }
+    
+    // Create a new Octokit instance
+    const octokit = new Octokit({
+      auth: githubToken
+    });
+    
+    // Query to get discussion URL by ID
+    const query = `
+      query GetDiscussion($id: ID!) {
+        node(id: $id) {
+          ... on Discussion {
+            url
+          }
+        }
+      }
+    `;
+    
+    const variables = { id: discussionId };
+    
+    const response = await octokit.graphql(query, variables) as { node: { url: string } };
+    return response.node.url;
+  } catch (error) {
+    console.error(`[getDiscussionUrl] Error getting discussion URL for ID ${discussionId}:`, error);
+    return null;
   }
 }
 

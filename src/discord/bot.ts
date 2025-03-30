@@ -12,6 +12,9 @@ const client = new Client({
   ]
 });
 
+// Set to track processed thread IDs to prevent duplicate handling
+const processedThreads = new Set<string>();
+
 export function setupDiscordBot(): void {
   // When the client is ready
   client.once(Events.ClientReady, (readyClient) => {
@@ -25,8 +28,24 @@ export function setupDiscordBot(): void {
   client.on(Events.ThreadCreate, async (thread) => {
     if (!thread.isThread() || thread.parent?.type !== ChannelType.GuildForum) return;
     
+    // Skip if we've already processed this thread
+    if (processedThreads.has(thread.id)) {
+      console.log(`Skipping already processed thread: ${thread.id}`);
+      return;
+    }
+    
+    // Add thread ID to processed set immediately to prevent double processing
+    processedThreads.add(thread.id);
+    
     try {
-      console.log(`New forum post created: ${thread.name}`);
+      console.log(`New forum post created: ${thread.name} (ID: ${thread.id})`);
+      
+      // Check if a GitHub discussion already exists for this thread
+      const existingDiscussionId = getGithubDiscussionId(thread.id);
+      if (existingDiscussionId) {
+        console.log(`Skipping thread ${thread.id} - GitHub discussion already exists: ${existingDiscussionId}`);
+        return;
+      }
       
       // Get the initial message content
       const messages = await thread.messages.fetch({ limit: 1 });
@@ -74,7 +93,7 @@ export function setupDiscordBot(): void {
       const discussionId = getGithubDiscussionId(threadId);
       
       if (discussionId) {
-        console.log(`New message in thread ${threadId}, syncing to GitHub discussion ${discussionId}`);
+        console.log(`[MessageCreate] New message in thread ${threadId}, syncing to GitHub discussion ${discussionId}`);
         
         // Add the comment to the GitHub discussion
         const result = await addCommentToDiscussion(
@@ -86,18 +105,18 @@ export function setupDiscordBot(): void {
         // React to the message to indicate it was synced
         await message.react('✅');
         
-        console.log(`Comment synced to GitHub: ${result.url}`);
+        console.log(`[MessageCreate] Comment synced to GitHub: ${result.url}`);
       } else {
-        console.log(`No GitHub discussion mapping found for thread ${threadId}`);
+        console.log(`[MessageCreate] No GitHub discussion mapping found for thread ${threadId}. This message will not be synced.`);
       }
     } catch (error) {
-      console.error('Error handling new message in forum thread:', error);
+      console.error('[MessageCreate] Error handling new message in forum thread:', error);
       
       // React to the message to indicate error
       try {
         await message.react('❌');
       } catch (reactError) {
-        console.error('Failed to add error reaction:', reactError);
+        console.error('[MessageCreate] Failed to add error reaction:', reactError);
       }
     }
   });

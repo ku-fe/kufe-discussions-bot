@@ -20,6 +20,7 @@ import cors from 'cors';
 import express from 'express';
 import { setupDiscordBot } from './discord/bot.js';
 import { setupGithubWebhooks } from './github/webhooks.js';
+import { listAllMappings } from './store/threadStore.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,12 @@ app.get('/', (req, res) => {
   res.send('KUFE Discussions Bot is running');
 });
 
+// Debug route to list all mappings
+app.get('/debug/mappings', (req, res) => {
+  const mappings = listAllMappings();
+  res.json(mappings);
+});
+
 // Setup GitHub webhook routes
 setupGithubWebhooks(app);
 
@@ -42,6 +49,9 @@ app.listen(PORT, () => {
   
   // Initialize Discord bot
   setupDiscordBot();
+  
+  // Log current mappings
+  console.log('Current thread mappings:', listAllMappings());
   
   console.log('Application started successfully');
 }); 
