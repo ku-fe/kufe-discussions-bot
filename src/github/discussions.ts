@@ -12,7 +12,7 @@ const repo = process.env.GITHUB_REPO || '';
 export async function createDiscussionFromPost(postData: DiscordPostData): Promise<{ url: string }> {
   try {
     // 중복 생성 방지: threadId에 대한 매핑이 이미 존재하는지 확인
-    const existingDiscussionId = getGithubDiscussionId(postData.threadId);
+    const existingDiscussionId = await getGithubDiscussionId(postData.threadId);
     if (existingDiscussionId) {
       console.log(`[createDiscussionFromPost] Discussion already exists for thread ${postData.threadId}. Skipping creation.`);
       const existingUrl = await getDiscussionUrl(existingDiscussionId);
@@ -82,7 +82,7 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
     // Store the mapping between Discord thread ID and GitHub discussion ID
     const discussionId = response.createDiscussion.discussion.id;
     const discussionUrl = response.createDiscussion.discussion.url;
-    storeMapping(postData.threadId, discussionId, discussionUrl);
+    await storeMapping(postData.threadId, discussionId, discussionUrl);
     
     return { url: discussionUrl };
     

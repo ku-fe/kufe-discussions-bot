@@ -78,6 +78,14 @@ async function handleDiscussionCreated(discussion: GitHubDiscussion): Promise<vo
       return;
     }
     
+    // 중복 생성 방지: 이미 해당 GitHub discussion ID에 대한 Discord thread 매핑이 있는지 확인
+    const { getDiscordThreadId } = await import('../store/threadStore.js');
+    const existingThreadId = await getDiscordThreadId(discussion.node_id);
+    if (existingThreadId) {
+      console.log(`Skipping GitHub discussion ${discussion.node_id} - Discord thread already exists: ${existingThreadId}`);
+      return;
+    }
+    
     // Get the forum channel
     const forumChannel = await discordClient.channels.fetch(forumChannelId);
     if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
@@ -126,7 +134,7 @@ async function handleDiscussionCommentCreated(discussion: GitHubDiscussion, comm
     }
     
     // Get Discord thread ID for this discussion
-    const discordThreadId = getDiscordThreadId(discussion.node_id);
+    const discordThreadId = await getDiscordThreadId(discussion.node_id);
     
     if (!discordThreadId) {
       console.log(`No Discord thread mapping found for GitHub discussion ${discussion.node_id}`);

@@ -1,7 +1,7 @@
 import { ChannelType, Client, Events, GatewayIntentBits } from 'discord.js';
 import { addCommentToDiscussion, createDiscussionFromPost } from '../github/discussions.js';
 import { setDiscordClient } from '../github/webhooks.js';
-import { getGithubDiscussionId } from '../store/threadStore.js';
+import { getGithubDiscussionId, listAllMappings } from '../store/threadStore.js';
 
 // Create a new client instance
 const client = new Client({ 
@@ -15,13 +15,29 @@ const client = new Client({
 // Set to track processed thread IDs to prevent duplicate handling
 const processedThreads = new Set<string>();
 
+// 시작 시 기존 매핑 로드하여 processedThreads에 추가
+async function loadExistingMappings(): Promise<void> {
+  try {
+    const mappings = await listAllMappings();
+    for (const mapping of mappings) {
+      processedThreads.add(mapping.discord_thread_id);
+    }
+    console.log(`Loaded ${processedThreads.size} existing thread mappings into memory cache.`);
+  } catch (error) {
+    console.error('Error loading existing mappings:', error);
+  }
+}
+
 export function setupDiscordBot(): void {
   // When the client is ready
-  client.once(Events.ClientReady, (readyClient) => {
+  client.once(Events.ClientReady, async (readyClient) => {
     console.log(`Discord bot logged in as ${readyClient.user.tag}`);
     
     // Set Discord client reference for webhook handler
     setDiscordClient(client);
+    
+    // 기존 매핑 로드
+    await loadExistingMappings();
   });
 
   // Handle forum post create events
@@ -41,7 +57,7 @@ export function setupDiscordBot(): void {
       console.log(`New forum post created: ${thread.name} (ID: ${thread.id})`);
       
       // Check if a GitHub discussion already exists for this thread
-      const existingDiscussionId = getGithubDiscussionId(thread.id);
+      const existingDiscussionId = await getGithubDiscussionId(thread.id);
       if (existingDiscussionId) {
         console.log(`Skipping thread ${thread.id} - GitHub discussion already exists: ${existingDiscussionId}`);
         return;
@@ -90,7 +106,7 @@ export function setupDiscordBot(): void {
       const threadId = message.channel.id;
       
       // Check if we have a mapping for this thread
-      const discussionId = getGithubDiscussionId(threadId);
+      const discussionId = await getGithubDiscussionId(threadId);
       
       if (discussionId) {
         console.log(`[MessageCreate] New message in thread ${threadId}, syncing to GitHub discussion ${discussionId}`);
