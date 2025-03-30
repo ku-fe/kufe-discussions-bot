@@ -8,7 +8,7 @@ const repo = process.env.GITHUB_REPO || '';
 /**
  * Create a GitHub discussion from a Discord post
  */
-export async function createDiscussionFromPost(postData: DiscordPostData): Promise<void> {
+export async function createDiscussionFromPost(postData: DiscordPostData): Promise<{ url: string }> {
   try {
     // 실행 시점에 토큰 가져오기
     const githubToken = process.env.GITHUB_TOKEN;
@@ -66,12 +66,14 @@ export async function createDiscussionFromPost(postData: DiscordPostData): Promi
     
     console.log('Sending GraphQL mutation with variables:', JSON.stringify(variables, null, 2));
     
-    const response = await octokit.graphql(mutation, variables);
+    const response = await octokit.graphql(mutation, variables) as { createDiscussion: { discussion: { id: string, url: string } } };
     
     console.log('GitHub discussion created successfully', response);
     
     // Here you would also store the mapping between Discord thread ID and GitHub discussion ID
     // This would typically be done in a database
+    
+    return { url: response.createDiscussion.discussion.url };
     
   } catch (error: any) {
     console.error('Error creating GitHub discussion:');

@@ -29,15 +29,25 @@ export function setupDiscordBot(): void {
       
       if (initialMessage) {
         // Create a GitHub discussion from this post
-        await createDiscussionFromPost({
+        const result = await createDiscussionFromPost({
           title: thread.name,
           body: initialMessage.content,
           authorName: initialMessage.author.username,
           threadId: thread.id
         });
+
+        // Send a confirmation message to the Discord thread
+        await thread.send(`✅ GitHub Discussion이 성공적으로 생성되었습니다: ${result.url}`);
       }
     } catch (error) {
       console.error('Error handling forum post creation:', error);
+      
+      // Send error notification
+      try {
+        await thread.send('❌ GitHub Discussion 생성 중 오류가 발생했습니다. 관리자에게 문의해주세요.');
+      } catch (sendError) {
+        console.error('Failed to send error message to Discord thread:', sendError);
+      }
     }
   });
 
