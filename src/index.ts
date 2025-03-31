@@ -9,11 +9,15 @@ if (!process.env.GITHUB_TOKEN) {
 }
 
 if (!process.env.GITHUB_REPOSITORY_ID) {
-  console.warn('WARNING: GITHUB_REPOSITORY_ID is not set in environment variables!');
+  console.warn(
+    'WARNING: GITHUB_REPOSITORY_ID is not set in environment variables!',
+  );
 }
 
 if (!process.env.GITHUB_DISCUSSION_CATEGORY_ID) {
-  console.warn('WARNING: GITHUB_DISCUSSION_CATEGORY_ID is not set in environment variables!');
+  console.warn(
+    'WARNING: GITHUB_DISCUSSION_CATEGORY_ID is not set in environment variables!',
+  );
 }
 
 if (!process.env.SUPABASE_URL) {
@@ -29,6 +33,7 @@ import express from 'express';
 import { setupDiscordBot } from './discord/bot.js';
 import { setupGithubWebhooks } from './github/webhooks.js';
 import { testSupabaseConnection } from './lib/supabase.js';
+import healthRouter from './routes/health.js';
 import { listAllMappings } from './store/threadStore.js';
 
 const app = express();
@@ -43,6 +48,9 @@ app.get('/', (req, res) => {
   res.send('KUFE Discussions Bot is running');
 });
 
+// Health check route
+app.use('/health', healthRouter);
+
 // Debug route to list all mappings
 app.get('/debug/mappings', async (req, res) => {
   const mappings = await listAllMappings();
@@ -50,29 +58,35 @@ app.get('/debug/mappings', async (req, res) => {
 });
 
 // Setup GitHub webhook routes
-console.log('Setting up GitHub webhook routes with the following configuration:');
+console.log(
+  'Setting up GitHub webhook routes with the following configuration:',
+);
 console.log(`- Webhook Path: /webhooks/github`);
-console.log(`- Webhook Secret: ${process.env.GITHUB_WEBHOOK_SECRET ? 'Set (hidden)' : 'Not set'}`);
+console.log(
+  `- Webhook Secret: ${process.env.GITHUB_WEBHOOK_SECRET ? 'Set (hidden)' : 'Not set'}`,
+);
 console.log(`- Webhook Events: discussions, discussion_comments`);
 setupGithubWebhooks(app);
 
 // Start the server
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
-  
+
   // Test Supabase connection
   const connected = await testSupabaseConnection();
   if (!connected) {
-    console.error('Failed to connect to Supabase! Check your credentials and network.');
+    console.error(
+      'Failed to connect to Supabase! Check your credentials and network.',
+    );
     process.exit(1);
   }
-  
+
   // Initialize Discord bot
   setupDiscordBot();
-  
+
   // Log current mappings
   const mappings = await listAllMappings();
   console.log('Current thread mappings:', mappings);
-  
+
   console.log('Application started successfully');
-}); 
+});
