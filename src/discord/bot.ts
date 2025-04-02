@@ -200,6 +200,15 @@ export function setupDiscordBot(): void {
     if (!thread.isThread() || thread.parent?.type !== ChannelType.GuildForum)
       return;
 
+    // Check if the thread is in the specific discussion forum channel
+    const forumChannelId = process.env.DISCORD_FORUM_CHANNEL_ID;
+    if (!forumChannelId || thread.parent.id !== forumChannelId) {
+      console.log(
+        `Skipping thread ${thread.id} - not in the discussion forum channel`,
+      );
+      return;
+    }
+
     // Skip if we've already processed this thread
     if (processedThreads.has(thread.id)) {
       console.log(`Skipping already processed thread: ${thread.id}`);
@@ -286,6 +295,15 @@ export function setupDiscordBot(): void {
       message.channel.parent?.type !== ChannelType.GuildForum
     )
       return;
+
+    // Check if the message is in the specific discussion forum channel
+    const forumChannelId = process.env.DISCORD_FORUM_CHANNEL_ID;
+    if (!forumChannelId || message.channel.parent.id !== forumChannelId) {
+      console.log(
+        `Skipping message ${message.id} - not in the discussion forum channel`,
+      );
+      return;
+    }
 
     // Ignore the initial message (already handled by ThreadCreate event)
     if (message.id === message.channel.id) return;
