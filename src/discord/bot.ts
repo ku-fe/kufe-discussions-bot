@@ -179,7 +179,9 @@ export function setupDiscordBot(): void {
         initialMessage.author.username,
       );
 
-      console.log(`Stored post ${thread.id} in Supabase`);
+      // Add checkmark emoji to the initial message
+      await initialMessage.react('✅');
+      console.log(`Added checkmark emoji to post ${thread.id}`);
     } catch (error) {
       console.error('Error processing thread:', error);
     } finally {
@@ -257,6 +259,10 @@ export function setupDiscordBot(): void {
         message.author.id,
         message.author.username,
       );
+
+      // Add checkmark emoji to the comment
+      await message.react('✅');
+      console.log(`Added checkmark emoji to comment ${message.id}`);
 
       console.log(`Successfully stored comment ${message.id} in Supabase`);
     } catch (error) {
