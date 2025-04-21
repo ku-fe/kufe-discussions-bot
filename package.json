@@ -1,7 +1,7 @@
 {
   "name": "kufe-discussions-bot",
   "version": "1.0.0",
-  "description": "Discord와 GitHub Discussions를 연동하는 봇",
+  "description": "Discord 포럼 채널의 포스트와 댓글을 Supabase에 저장하는 봇",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -11,14 +11,13 @@
   },
   "keywords": [
     "discord",
-    "github",
+    "supabase",
     "bot",
-    "discussions"
+    "forum"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@octokit/rest": "^21.1.1",
     "@supabase/supabase-js": "^2.49.4",
     "cors": "^2.8.5",
     "discord.js": "^14.18.0",
@@ -33,5 +32,6 @@
     "prettier": "^3.5.3",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
-  }
+  },
+  "packageManager": "pnpm@10.7.1+sha512.2d92c86b7928dc8284f53494fb4201f983da65f0fb4f0d40baafa5cf628fa31dae3e5968f12466f17df7e97310e30f343a648baea1b9b350685dafafffdf5808"
 }

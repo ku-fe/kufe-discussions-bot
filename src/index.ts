@@ -4,22 +4,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // 환경 변수 로드 테스트
-if (!process.env.GITHUB_TOKEN) {
-  console.warn('WARNING: GITHUB_TOKEN is not set in environment variables!');
-}
-
-if (!process.env.GITHUB_REPOSITORY_ID) {
-  console.warn(
-    'WARNING: GITHUB_REPOSITORY_ID is not set in environment variables!',
-  );
-}
-
-if (!process.env.GITHUB_DISCUSSION_CATEGORY_ID) {
-  console.warn(
-    'WARNING: GITHUB_DISCUSSION_CATEGORY_ID is not set in environment variables!',
-  );
-}
-
 if (!process.env.SUPABASE_URL) {
   console.warn('WARNING: SUPABASE_URL is not set in environment variables!');
 }
@@ -31,10 +15,9 @@ if (!process.env.SUPABASE_KEY) {
 import cors from 'cors';
 import express from 'express';
 import { setupDiscordBot } from './discord/bot.js';
-import { setupGithubWebhooks } from './github/webhooks.js';
 import { testSupabaseConnection } from './lib/supabase.js';
 import healthRouter from './routes/health.js';
-import { listAllMappings } from './store/threadStore.js';
+import { listAllPosts } from './store/forumStore.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,22 +34,11 @@ app.get('/', (req, res) => {
 // Health check route
 app.use('/health', healthRouter);
 
-// Debug route to list all mappings
-app.get('/debug/mappings', async (req, res) => {
-  const mappings = await listAllMappings();
-  res.json(mappings);
+// Debug route to list all posts
+app.get('/debug/posts', async (req, res) => {
+  const posts = await listAllPosts();
+  res.json(posts);
 });
-
-// Setup GitHub webhook routes
-console.log(
-  'Setting up GitHub webhook routes with the following configuration:',
-);
-console.log(`- Webhook Path: /webhooks/github`);
-console.log(
-  `- Webhook Secret: ${process.env.GITHUB_WEBHOOK_SECRET ? 'Set (hidden)' : 'Not set'}`,
-);
-console.log(`- Webhook Events: discussions, discussion_comments`);
-setupGithubWebhooks(app);
 
 // Start the server
 app.listen(PORT, async () => {
@@ -84,9 +56,9 @@ app.listen(PORT, async () => {
   // Initialize Discord bot
   setupDiscordBot();
 
-  // Log current mappings
-  const mappings = await listAllMappings();
-  console.log('Current thread mappings:', mappings);
+  // Log current posts
+  const posts = await listAllPosts();
+  console.log('Current posts:', posts);
 
   console.log('Application started successfully');
 });
